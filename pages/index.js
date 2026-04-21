@@ -52,7 +52,7 @@ export default function App(){
   return(
     <>
       <Head>
-        <title>Brit Örtlepp – Instagram Analyse</title>
+        <title>Brit Ortlepp – Instagram Analyse</title>
         <meta name="viewport" content="width=device-width, initial-scale=1"/>
         <link rel="preconnect" href="https://fonts.googleapis.com"/>
         <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet"/>
@@ -61,7 +61,7 @@ export default function App(){
       <div style={{fontFamily:'Montserrat, sans-serif',minHeight:'100vh',background:'#F5F2EE',color:B.black}}>
         <div style={{background:B.black,color:B.white,padding:'0 24px',display:'flex',alignItems:'center',justifyContent:'space-between',height:64}}>
           <div style={{display:'flex',alignItems:'center',gap:16}}>
-            <div><div style={{fontWeight:800,fontSize:18,color:B.yellow,letterSpacing:'0.08em'}}>BRIT ÖRTLEPP</div><div style={{fontSize:9,letterSpacing:'0.25em',color:'#aaa',marginTop:1}}>OUTSTANDING CONTENT</div></div>
+            <div><div style={{fontWeight:800,fontSize:18,color:B.yellow,letterSpacing:'0.08em'}}>BRIT ORTLEPP</div><div style={{fontSize:9,letterSpacing:'0.25em',color:'#aaa',marginTop:1}}>OUTSTANDING CONTENT</div></div>
             <div style={{width:1,height:32,background:'#333'}}/>
             <div style={{fontSize:12,color:'#ccc',letterSpacing:'0.1em'}}>INSTAGRAM ANALYSE</div>
           </div>
@@ -113,31 +113,4 @@ export default function App(){
           <div style={{background:B.black,borderRadius:20,padding:28,marginBottom:16,display:'flex',gap:28,alignItems:'center',flexWrap:'wrap'}}>
             <ScoreRing score={analysis.gesamtscore} size={120}/>
             <div style={{flex:1}}>
-              <div style={{fontSize:11,letterSpacing:'0.2em',color:B.yellow,marginBottom:6}}>ANALYSE-REPORT · OUTSTANDING CONTENT</div>
-              <h2 style={{fontWeight:800,fontSize:24,margin:'0 0 10px',color:B.yellow}}>@{profile.handle}</h2>
-              <p style={{fontSize:14,lineHeight:1.75,color:'#ccc',marginBottom:14}}>{analysis.zusammenfassung}</p>
-              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{analysis.staerken?.map((st,i)=><span key={i} style={{background:B.yellow+'25',color:B.yellow,padding:'4px 12px',borderRadius:99,fontSize:12,fontWeight:700}}>✓ {st}</span>)}</div>
-            </div>
-          </div>
-          <div style={{...card,padding:20}}>
-            <div style={{fontSize:11,letterSpacing:'0.15em',color:B.teal,fontWeight:700,marginBottom:16}}>BEWERTUNGSÜBERSICHT</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))',gap:12}}>
-              {[{l:'Bio',k:'bio'},{l:'SEO',k:'seo'},{l:'Positionierung',k:'positionierung'},{l:'Content-Säulen',k:'contentsaeulen'},{l:'Hooks',k:'hooks'}].map(({l,k})=>(<div key={k} style={{background:'#F5F2EE',borderRadius:12,padding:14,textAlign:'center'}}><div style={{fontSize:26,fontWeight:800,color:scoreColor(analysis[k]?.score)}}>{analysis[k]?.score}</div><div style={{fontSize:11,color:'#888',marginBottom:8}}>{l}</div><ScoreBar score={analysis[k]?.score}/></div>))}
-            </div>
-          </div>
-          <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
-            {TABS.map(t=>{const active=activeTab===t.id;const sc=t.key&&analysis[t.key]?.score;return(<button key={t.id} onClick={()=>setActiveTab(t.id)} style={{padding:'8px 14px',borderRadius:10,border:`2px solid ${active?B.teal:B.cream}`,background:active?B.teal:B.white,color:active?B.white:B.black,fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'Montserrat, sans-serif'}}>{t.label}{sc!=null?` · ${sc}`:''}</button>);})}
-          </div>
-          {activeTab==='bio'&&analysis.bio&&<div style={card}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18,margin:0}}>📝 Bio-Analyse</h3><span style={{fontSize:22,fontWeight:800,color:scoreColor(analysis.bio.score)}}>{analysis.bio.score}/100</span></div><p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.bio.analyse}</p><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}><SectionBox color={B.teal} title="✅ Stärken" items={analysis.bio.staerken}/><SectionBox color={B.coral} title="⚠️ Schwächen" items={analysis.bio.schwaechen}/></div><div style={{background:B.yellow+'30',borderRadius:12,padding:20,borderLeft:`4px solid ${B.yellow}`}}><div style={{fontWeight:800,color:B.dark,marginBottom:10,fontSize:13}}>✨ OPTIMIERTER BIO-VORSCHLAG</div><p style={{fontSize:14,lineHeight:1.85,whiteSpace:'pre-line'}}>{analysis.bio.optimierung}</p></div></div>}
-          {activeTab==='seo'&&analysis.seo&&<div style={card}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18,margin:0}}>🔍 SEO</h3><span style={{fontSize:22,fontWeight:800,color:scoreColor(analysis.seo.score)}}>{analysis.seo.score}/100</span></div><p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.seo.analyse}</p><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}><div style={{background:B.teal+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>🏷️ Aktuelle Keywords</div><div style={{display:'flex',flexWrap:'wrap',gap:6}}>{analysis.seo.aktuelleKeywords?.map((kw,i)=><Tag key={i} color={B.teal}>{kw}</Tag>)}</div></div><div style={{background:B.coral+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>❌ Fehlende Keywords</div><div style={{display:'flex',flexWrap:'wrap',gap:6}}>{analysis.seo.fehlendeKeywords?.map((kw,i)=><Tag key={i} color={B.coral}>{kw}</Tag>)}</div></div></div><div style={{background:B.yellow+'30',borderRadius:12,padding:20,borderLeft:`4px solid ${B.yellow}`}}><div style={{fontWeight:800,color:B.dark,marginBottom:8,fontSize:13}}>✨ OPTIMIERTER SEO-NAME</div><p style={{fontWeight:800,fontSize:16}}>{analysis.seo.optimierterName}</p></div></div>}
-          {activeTab==='keywords'&&analysis.keywords&&<div style={card}><h3 style={{fontWeight:800,fontSize:18,margin:'0 0 20px'}}>🔑 Keywords</h3>{[{label:'Primär',items:analysis.keywords.primaer,color:B.teal},{label:'Sekundär',items:analysis.keywords.sekundaer,color:B.dark},{label:'Hashtags',items:analysis.keywords.hashtags,color:'#555'}].map(({label:l2,items,color})=><div key={l2} style={{marginBottom:20}}><div style={{fontSize:12,fontWeight:700,color:B.teal,letterSpacing:'0.1em',marginBottom:10}}>{l2.toUpperCase()}</div><div style={{display:'flex',flexWrap:'wrap',gap:8}}>{items?.map((kw,i)=><span key={i} style={{background:color+'18',color,padding:'7px 16px',borderRadius:99,fontSize:13,fontWeight:700}}>{kw}</span>)}</div></div>)}</div>}
-          {activeTab==='massnahmen'&&analysis.massnahmen&&<div style={card}><h3 style={{fontWeight:800,fontSize:18,margin:'0 0 16px'}}>🚀 Sofort-Maßnahmen</h3>{analysis.massnahmen.map((m,i)=>{const bCol=i===0?B.coral:i===1?'#E9A020':B.teal;return(<div key={i} style={{background:'#F5F2EE',borderRadius:12,padding:20,marginBottom:12,borderLeft:`4px solid ${bCol}`}}><div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}><div style={{width:30,height:30,background:bCol,color:B.white,borderRadius:99,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:13}}>#{m.rang}</div><span style={{fontWeight:800,fontSize:16}}>{m.titel}</span></div><p style={{fontSize:14,color:'#444',marginBottom:8}}>{m.was}</p><div style={{fontSize:13,color:'#777'}}>📈 {m.auswirkung}</div></div>);})}</div>}
-          <div style={{display:'flex',gap:12,justifyContent:'center',padding:'8px 0 40px'}}>
-            <Btn variant="ghost" onClick={()=>{setStep(1);setAnalysis(null);}}>🔄 Neue Analyse</Btn>
-            <Btn variant="yellow" onClick={()=>window.print()}>📄 Report exportieren</Btn>
-          </div>
-        </div>)}
-      </div>
-    </>
-  );
-}
+              <div
