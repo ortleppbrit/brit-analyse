@@ -1,20 +1,16 @@
 export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '25mb',
-    },
-  },
-  maxDuration: 60,
+  runtime: 'edge',
 };
 
-export default async function handler(req, res) {
+export default async function handler(req) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
   }
 
-  const { messages, prompt } = req.body;
-
   try {
+    const body = await req.json();
+    const { messages, prompt } = body;
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -23,16 +19,19 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 4000,
         messages: messages || [{ role: 'user', content: prompt }],
       }),
     });
 
     const data = await response.json();
-    return res.status(200).json(data);
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (error) {
     console.error('API Fehler:', error);
-    return res.status(500).json({ error: 'Analyse fehlgeschlagen' });
+    return new Response(JSON.stringify({ error: 'Analyse fehlgeschlagen' }), { status: 500 });
   }
 }
