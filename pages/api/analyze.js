@@ -20,7 +20,7 @@ export default async function handler(req) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4000,
+        max_tokens: 2000,
         messages: messages || [{ role: 'user', content: prompt }],
       }),
     });
@@ -31,7 +31,6 @@ export default async function handler(req) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('API Fehler:', error);
-    return new Response(JSON.stringify({ error: 'Analyse fehlgeschlagen' }), { status: 500 });
+    return new Response(JSON.stringify({ error: String(error) }), { status: 500 });
   }
 }
