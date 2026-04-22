@@ -180,7 +180,7 @@ export default function App() {
     try {
       const imgs=[];
       for(const f of [profileImg,feedImg1,feedImg2,feedImg3].filter(Boolean)){
-        imgs.push({type:'image',source:{type:'base64',media_type:f.type,data:await fileToB64(f)}});
+        imgs.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await fileToB64(f)}});
       }
       const prompt=`Du bist ein professioneller Instagram-Stratege für Coaches und Berater im DACH-Raum. Analysiere die hochgeladenen Instagram-Screenshots.
 
