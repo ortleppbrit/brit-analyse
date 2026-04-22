@@ -186,24 +186,6 @@ function fileToB64(file) {
     reader.readAsDataURL(file);
   });
 }
-    const url=URL.createObjectURL(file);
-    img.onload=()=>{
-      const MAX=1200;
-      let w=img.width,h=img.height;
-      if(w>MAX||h>MAX){
-        if(w>h){h=Math.round(h*MAX/w);w=MAX;}
-        else{w=Math.round(w*MAX/h);h=MAX;}
-      }
-      const canvas=document.createElement('canvas');
-      canvas.width=w;canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      URL.revokeObjectURL(url);
-      res(canvas.toDataURL('image/jpeg',0.75).split(',')[1]);
-    };
-    img.onerror=rej;
-    img.src=url;
-  });
-}
 
 const scoreColor=s=>s>=70?B.teal:s>=45?'#E9A020':B.coral;
 const scoreLabel=s=>s>=70?'Gut':s>=45?'Ausbaufähig':'Handlungsbedarf';
@@ -268,15 +250,8 @@ export default function App() {
     const iv=setInterval(()=>{mi=(mi+1)%LOAD_MSGS.length;setLoadMsg(LOAD_MSGS[mi]);},3000);
     try {
       const imgs=[];
-      for(const f of [profileImg,feedImg1,feedImg2,feedImg3].filter(Boolean)){
-        imgs.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await function fileToB64(file) {
-  return new Promise((res,rej)=>{
-    const reader=new FileReader();
-    reader.onload=()=>res(reader.result.split(',')[1]);
-    reader.onerror=rej;
-    reader.readAsDataURL(file);
-  });
-}(f)}});
+      for(const f of [profileImg,feedImg1].filter(Boolean)){
+        imgs.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await fileToB64(f)}});
       }
       const hauptzielLabel=ZIELE.find(z=>z.id===hauptziel)?.label||hauptziel;
       const nebenzielLabels=nebenziele.map(id=>ZIELE.find(z=>z.id===id)?.label||id).join(', ');
