@@ -180,7 +180,12 @@ function Btn({children,onClick,disabled,variant='primary',full}) {
 
 function fileToB64(file) {
   return new Promise((res,rej)=>{
-    const img=new Image();
+    const reader=new FileReader();
+    reader.onload=()=>res(reader.result.split(',')[1]);
+    reader.onerror=rej;
+    reader.readAsDataURL(file);
+  });
+}
     const url=URL.createObjectURL(file);
     img.onload=()=>{
       const MAX=1200;
@@ -264,7 +269,14 @@ export default function App() {
     try {
       const imgs=[];
       for(const f of [profileImg,feedImg1,feedImg2,feedImg3].filter(Boolean)){
-        imgs.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await fileToB64(f)}});
+        imgs.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await function fileToB64(file) {
+  return new Promise((res,rej)=>{
+    const reader=new FileReader();
+    reader.onload=()=>res(reader.result.split(',')[1]);
+    reader.onerror=rej;
+    reader.readAsDataURL(file);
+  });
+}(f)}});
       }
       const hauptzielLabel=ZIELE.find(z=>z.id===hauptziel)?.label||hauptziel;
       const nebenzielLabels=nebenziele.map(id=>ZIELE.find(z=>z.id===id)?.label||id).join(', ');
