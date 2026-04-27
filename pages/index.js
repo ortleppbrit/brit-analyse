@@ -180,10 +180,27 @@ function Btn({children,onClick,disabled,variant='primary',full}) {
 
 function fileToB64(file) {
   return new Promise((res,rej)=>{
-    const reader=new FileReader();
-    reader.onload=()=>res(reader.result.split(',')[1]);
-    reader.onerror=rej;
-    reader.readAsDataURL(file);
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      try {
+        const MAX=800;
+        let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){
+          if(w>h){h=Math.round(h*MAX/w);w=MAX;}
+          else{w=Math.round(w*MAX/h);h=MAX;}
+        }
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        const data=canvas.toDataURL('image/jpeg',0.6);
+        res(data.split(',')[1]);
+      } catch(e){rej(e);}
+    };
+    img.onerror=()=>rej(new Error('Image load failed'));
+    img.src=url;
   });
 }
 
