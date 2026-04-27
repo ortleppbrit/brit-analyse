@@ -23,16 +23,22 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-3-5-sonnet-20241022',
         max_tokens: 8000,
         messages: messages || [{ role: 'user', content: prompt }],
       }),
     });
 
     const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Anthropic API Fehler:', JSON.stringify(data));
+      return res.status(500).json({ error: JSON.stringify(data) });
+    }
+
     return res.status(200).json(data);
   } catch (error) {
     console.error('API Fehler:', error);
-    return res.status(500).json({ error: 'Analyse fehlgeschlagen' });
+    return res.status(500).json({ error: String(error) });
   }
 }
