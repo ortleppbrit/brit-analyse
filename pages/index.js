@@ -323,8 +323,13 @@ Antworte NUR mit JSON:
       for(let i=0;i<postScreenshots.length;i++){
         const ps=postScreenshots[i];
         if(ps.img){
-          postImgContent.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await fileToB64(ps.img)}});
-          postImgContent.push({type:'text',text:`Screenshot von Post #${i+1}`});
+          try{
+            const b64=await fileToB64(ps.img);
+            postImgContent.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}});
+            postImgContent.push({type:'text',text:`Screenshot von Post #${i+1}`});
+          }catch(e){
+            console.error('Bild übersprungen:',e);
+          }
         }
       }
 
