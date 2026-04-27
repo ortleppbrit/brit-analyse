@@ -318,7 +318,6 @@ Antworte NUR mit JSON:
       const hauptzielLabel=ZIELE.find(z=>z.id===hauptziel)?.label||hauptziel;
       const nebenzielLabels=nebenziele.map(id=>ZIELE.find(z=>z.id===id)?.label||id).join(', ');
 
-      // Build messages with post screenshots
       const postImgContent=[];
       for(let i=0;i<postScreenshots.length;i++){
         const ps=postScreenshots[i];
@@ -342,34 +341,50 @@ Hauptziel: ${hauptzielLabel}
 Nebenziele: ${nebenzielLabels||'keine'}
 
 POST-DETAILS:
-${postScreenshots.map((p,i)=>`Post ${i+1}: ${p.img?'Screenshot hochgeladen ✓':''} | Caption: ${p.caption||'k.A.'} | Likes: ${p.likes||'k.A.'} | Kommentare: ${p.comments||'k.A.'} | Views: ${p.views||'k.A.'} | Hashtags: ${p.hashtags||'k.A.'} | Format: ${p.format||'k.A.'}`).join('\n')}
+${postScreenshots.map((p,i)=>`Post ${i+1}: ${p.img?'Screenshot hochgeladen':'kein Screenshot'} | Caption: ${p.caption||'k.A.'} | Likes: ${p.likes||'k.A.'} | Kommentare: ${p.comments||'k.A.'} | Views: ${p.views||'k.A.'} | Hashtags: ${p.hashtags||'k.A.'} | Format: ${p.format||'k.A.'}`).join('\n')}
 
 INSIGHTS: Reichweite: ${avgReach||'k.A.'} | Wachstum: ${followerGrowth||'k.A.'} | Profil-Aufrufe: ${profileViews||'k.A.'} | Story-Reach: ${storyReach||'k.A.'} | Link-Klicks: ${linkClicks||'k.A.'} | Beste Zeit: ${bestTime||'k.A.'} | Top-Format: ${topFormat||'k.A.'} | Zusatz: ${additionalNotes||'keine'}
 
 WICHTIG: Sprich ${vorname} durchgehend mit "du/dein" an. Analysiere den Content IMMER im Kontext des Hauptziels "${hauptzielLabel}".
 
-Antworte NUR mit JSON:
-{"gesamtscore":<0-100>,"zusammenfassung":"<4-5 Sätze, direkte Du-Ansprache an ${vorname}>","staerken":["<s1>","<s2>","<s3>"],"sofortmassnahmen":["<m1>","<m2>","<m3>"],
-"zielAnalyse":{"hauptziel":"${hauptzielLabel}","erreichungsgrad":<0-100>,"analyse":"<Wie gut hilft der aktuelle Content das Hauptziel zu erreichen?>","luecken":["<Lücke 1>","<Lücke 2>","<Lücke 3>"],"empfehlungen":["<Empfehlung 1>","<Empfehlung 2>","<Empfehlung 3>"]},
-"bio":{"score":<0-100>,"analyse":"<mind. 4 Sätze, Du-Form>","staerken":["<s>"],"schwaechen":["<s>"],"optimierung":"<Optimierter Bio-Text>","seoVorschlag":"<SEO-Feld>"},
-"feedOptik":{"score":<0-100>,"analyse":"<Text, Du-Form>","staerken":["<s>"],"verbesserungen":["<v>","<v>","<v>"],"empfehlung":"<Text>"},
-"contentsaeulen":{"score":<0-100>,"analyse":"<Text>","authority":{"score":<0-100>,"analyse":"<Text>","ideen":["<i>","<i>","<i>"]},"demand":{"score":<0-100>,"analyse":"<Text>","ideen":["<i>","<i>","<i>"]},"conversion":{"score":<0-100>,"analyse":"<Text>","ideen":["<i>","<i>","<i>"]},"empfehlung":"<Text>"},
-"hooks":{"score":<0-100>,"analyse":"<Text>","staerken":["<s>"],"schwaechen":["<s>"],"hookVorschlaege":["<h1>","<h2>","<h3>","<h4>","<h5>"],"optimierungen":[{"original":"<o>","optimiert":"<opt>","grund":"<g>"}]},
-"postAnalyse":[{"titel":"<Post-Bezeichnung>","bewertung":"<Analyse, Du-Form>","score":<0-100>,"staerken":["<s>"],"schwaechen":["<s>"],"empfehlung":"<Text>"}],
-"keywords":{"primaer":["<kw>","<kw>","<kw>"],"sekundaer":["<kw>","<kw>","<kw>"],"hashtags":{"gross":["#t1","#t2","#t3"],"mittel":["#t1","#t2","#t3","#t4"],"nische":["#t1","#t2","#t3","#t4","#t5"]}},
-"contentplan":[{"woche":1,"titel":"<Idee>","format":"Reel|Karussell|Static","saeule":"Authority|Demand|Conversion","hook":"<Hook>","thema":"<Thema>","zielBezug":"<Wie hilft das dem Hauptziel?>"},{"woche":2,"titel":"<Idee>","format":"Reel|Karussell|Static","saeule":"Authority|Demand|Conversion","hook":"<Hook>","thema":"<Thema>","zielBezug":"<Wie hilft das dem Hauptziel?>"},{"woche":3,"titel":"<Idee>","format":"Reel|Karussell|Static","saeule":"Authority|Demand|Conversion","hook":"<Hook>","thema":"<Thema>","zielBezug":"<Wie hilft das dem Hauptziel?>"},{"woche":4,"titel":"<Idee>","format":"Reel|Karussell|Static","saeule":"Authority|Demand|Conversion","hook":"<Hook>","thema":"<Thema>","zielBezug":"<Wie hilft das dem Hauptziel?>"}],
-"massnahmen":[{"rang":1,"titel":"<Titel>","was":"<Was konkret tun, Du-Form>","auswirkung":"<Wie hilft das dem Ziel?>","aufwand":"niedrig|mittel|hoch","kategorie":"Bio|Optik|Content|Strategie"},{"rang":2,"titel":"<Titel>","was":"<Was>","auswirkung":"<Ergebnis>","aufwand":"niedrig|mittel|hoch","kategorie":"Bio|Optik|Content|Strategie"},{"rang":3,"titel":"<Titel>","was":"<Was>","auswirkung":"<Ergebnis>","aufwand":"niedrig|mittel|hoch","kategorie":"Bio|Optik|Content|Strategie"},{"rang":4,"titel":"<Titel>","was":"<Was>","auswirkung":"<Ergebnis>","aufwand":"niedrig|mittel|hoch","kategorie":"Bio|Optik|Content|Strategie"},{"rang":5,"titel":"<Titel>","was":"<Was>","auswirkung":"<Ergebnis>","aufwand":"niedrig|mittel|hoch","kategorie":"Bio|Optik|Content|Strategie"}]}`;
+Antworte NUR mit validem JSON ohne Backticks oder Markdown:
+{"gesamtscore":75,"zusammenfassung":"Text","staerken":["s1","s2","s3"],"sofortmassnahmen":["m1","m2","m3"],"zielAnalyse":{"hauptziel":"${hauptzielLabel}","erreichungsgrad":50,"analyse":"Text","luecken":["l1","l2"],"empfehlungen":["e1","e2"]},"bio":{"score":70,"analyse":"Text","staerken":["s"],"schwaechen":["s"],"optimierung":"Text","seoVorschlag":"Text"},"feedOptik":{"score":65,"analyse":"Text","staerken":["s"],"verbesserungen":["v1","v2"],"empfehlung":"Text"},"contentsaeulen":{"score":60,"analyse":"Text","authority":{"score":60,"analyse":"Text","ideen":["i1","i2","i3"]},"demand":{"score":60,"analyse":"Text","ideen":["i1","i2","i3"]},"conversion":{"score":60,"analyse":"Text","ideen":["i1","i2","i3"]},"empfehlung":"Text"},"hooks":{"score":65,"analyse":"Text","staerken":["s"],"schwaechen":["s"],"hookVorschlaege":["h1","h2","h3","h4","h5"],"optimierungen":[{"original":"o","optimiert":"opt","grund":"g"}]},"postAnalyse":[{"titel":"Post 1","bewertung":"Text","score":70,"staerken":["s"],"schwaechen":["s"],"empfehlung":"Text"}],"keywords":{"primaer":["kw1","kw2","kw3"],"sekundaer":["kw1","kw2","kw3"],"hashtags":{"gross":["#t1","#t2"],"mittel":["#t1","#t2","#t3"],"nische":["#t1","#t2","#t3","#t4"]}},"contentplan":[{"woche":1,"titel":"Idee","format":"Reel","saeule":"Authority","hook":"Hook","thema":"Thema","zielBezug":"Bezug"},{"woche":2,"titel":"Idee","format":"Karussell","saeule":"Demand","hook":"Hook","thema":"Thema","zielBezug":"Bezug"},{"woche":3,"titel":"Idee","format":"Reel","saeule":"Conversion","hook":"Hook","thema":"Thema","zielBezug":"Bezug"},{"woche":4,"titel":"Idee","format":"Static","saeule":"Authority","hook":"Hook","thema":"Thema","zielBezug":"Bezug"}],"massnahmen":[{"rang":1,"titel":"Titel","was":"Was","auswirkung":"Ergebnis","aufwand":"niedrig","kategorie":"Bio"},{"rang":2,"titel":"Titel","was":"Was","auswirkung":"Ergebnis","aufwand":"mittel","kategorie":"Content"},{"rang":3,"titel":"Titel","was":"Was","auswirkung":"Ergebnis","aufwand":"hoch","kategorie":"Strategie"},{"rang":4,"titel":"Titel","was":"Was","auswirkung":"Ergebnis","aufwand":"niedrig","kategorie":"Optik"},{"rang":5,"titel":"Titel","was":"Was","auswirkung":"Ergebnis","aufwand":"mittel","kategorie":"Content"}]}`;
 
       const msgContent=[...postImgContent,{type:'text',text:prompt}];
       const res=await fetch('/api/analyze',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({messages:[{role:'user',content:msgContent}]})
       });
+
+      if(!res.ok){
+        const errText=await res.text();
+        throw new Error(`Server Fehler ${res.status}: ${errText}`);
+      }
+
       const data=await res.json();
-      const raw=data.content[0].text.replace(/```json|```/g,'').trim();
-      setAnalysis(prev=>({...prev,final:JSON.parse(raw)}));
+
+      if(!data.content||!data.content[0]){
+        throw new Error('Keine Antwort von der KI erhalten');
+      }
+
+      let raw=data.content[0].text;
+      raw=raw.replace(/```json/g,'').replace(/```/g,'').trim();
+
+      // Find JSON in response
+      const jsonStart=raw.indexOf('{');
+      const jsonEnd=raw.lastIndexOf('}');
+      if(jsonStart===-1||jsonEnd===-1){
+        throw new Error('Kein gültiges JSON in der Antwort');
+      }
+      raw=raw.substring(jsonStart,jsonEnd+1);
+
+      const final=JSON.parse(raw);
+      setAnalysis(prev=>({...prev,final}));
       setStep(4);setActiveTab('gesamt');
-    } catch(e){console.error(e);alert('Fehler bei der Analyse.');}
+    } catch(e){
+      console.error('Finale Analyse Fehler:',e);
+      alert('Fehler bei der Analyse: '+e.message);
+    }
     clearInterval(iv);setLoading(false);
   }
 
