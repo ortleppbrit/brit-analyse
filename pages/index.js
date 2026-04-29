@@ -276,7 +276,7 @@ Antworte NUR mit JSON:
     const iv=startLoading();
     try {
       const imgs=[];
-      for(const f of [feedImg1,feedImg2,feedImg3].filter(Boolean)) {
+      for(const f of [feedImg1,feedImg2].filter(Boolean)) {
         const b64=await compressImage(f, 700, 0.55);
         imgs.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}});
       }
@@ -315,7 +315,7 @@ Antworte NUR mit JSON:
     const iv=startLoading();
     try {
       const postImgContent=[];
-      for(let i=0;i<postScreenshots.length;i++) {
+      for(let i=0;i<Math.min(postScreenshots.length,2);i++) {
         const ps=postScreenshots[i];
         if(ps.img) {
           try {
@@ -550,11 +550,10 @@ Antworte NUR mit JSON:
                   <div style={{fontWeight:700,color:B.dark,marginBottom:6,fontSize:13}}>📱 So machst du gute Feed-Screenshots:</div>
                   <div style={{fontSize:13,color:'#444',lineHeight:1.8}}>1. Öffne dein Instagram-Profil<br/>2. Scrolle zum Feed mit deinen Posts<br/>3. <strong>Mind. 9 Posts</strong> müssen sichtbar sein<br/>4. Mache 2-3 Screenshots vom Feed</div>
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
                   <UploadZone label="Feed-Screenshot 1 *" hint="Mind. 9 Posts sichtbar" onFile={setFeedImg1} file={feedImg1} icon="📱" required/>
-                  <UploadZone label="Feed-Screenshot 2 (empfohlen)" hint="Weitere Posts" onFile={setFeedImg2} file={feedImg2} icon="📱"/>
+                  <UploadZone label="Feed-Screenshot 2 (empfohlen)" hint="Weitere Posts scrollen" onFile={setFeedImg2} file={feedImg2} icon="📱"/>
                 </div>
-                <UploadZone label="Feed-Screenshot 3 (optional)" hint="Noch mehr Posts für bessere Analyse" onFile={setFeedImg3} file={feedImg3} icon="📱"/>
               </Card>
               <div style={{display:'flex',justifyContent:'space-between'}}>
                 <Btn onClick={()=>setStep(1)} variant="ghost">← Zurück</Btn>
@@ -587,10 +586,10 @@ Antworte NUR mit JSON:
                   </div>
                 </Card>
               )}
-              <Card style={{background:B.yellow+'25',borderLeft:`4px solid ${B.yellow}`}}>
-                <div style={{fontWeight:800,color:B.dark,marginBottom:8}}>📱 So findest du die Posts:</div>
-                <div style={{fontSize:13,color:'#444',lineHeight:1.8}}>1. Öffne Instagram → gehe zu deinem Profil<br/>2. Suche den beschriebenen Post<br/>3. Öffne den Post vollständig<br/>4. Mache einen Screenshot (Hook + Bild + Likes sichtbar)<br/>5. Lade ihn hier hoch</div>
-              </Card>
+                  <div style={{background:B.yellow+'25',borderRadius:12,padding:14,marginBottom:16,borderLeft:`4px solid ${B.yellow}`}}>
+                  <div style={{fontWeight:700,color:B.dark,marginBottom:6,fontSize:13}}>📱 Bitte lade nur die 2 wichtigsten Posts hoch:</div>
+                  <div style={{fontSize:13,color:'#444',lineHeight:1.8}}>1. Öffne den Post in Instagram<br/>2. Mache einen Screenshot (Hook + Bild + Likes sichtbar)<br/>3. Lade max. 2 Screenshots hoch – die KI analysiert sie detail</div>
+                </div>
               {postRequests.map((req,i)=>(
                 <Card key={i} style={{borderLeft:`4px solid ${req.prioritaet==='hoch'?B.coral:B.teal}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
