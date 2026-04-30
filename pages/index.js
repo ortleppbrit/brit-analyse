@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 const B = {
   teal:'#517383', yellow:'#ECEA54', coral:'#E94D60',
@@ -120,11 +120,11 @@ function SLabel({children}) {
   return <div style={{fontSize:11,fontWeight:700,color:B.teal,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:8}}>{children}</div>;
 }
 
-function Inp({label,placeholder,value,onChange,required}) {
+function Inp({label,placeholder,value,onChange,required,type='text'}) {
   return (
     <div>
       <label style={{display:'block',fontSize:12,fontWeight:700,color:B.teal,marginBottom:6,letterSpacing:'0.04em',textTransform:'uppercase'}}>{label}{required&&<span style={{color:B.coral}}> *</span>}</label>
-      <input placeholder={placeholder} value={value} onChange={onChange} style={{width:'100%',border:`1.5px solid ${B.cream}`,borderRadius:10,padding:'11px 14px',fontSize:14,outline:'none',fontFamily:'Montserrat,sans-serif',boxSizing:'border-box',background:B.white,color:B.black}}/>
+      <input type={type} placeholder={placeholder} value={value} onChange={onChange} style={{width:'100%',border:`1.5px solid ${B.cream}`,borderRadius:10,padding:'11px 14px',fontSize:14,outline:'none',fontFamily:'Montserrat,sans-serif',boxSizing:'border-box',background:B.white,color:B.black}}/>
     </div>
   );
 }
@@ -155,22 +155,35 @@ function Btn({children,onClick,disabled,variant='primary',full}) {
   return (<button onClick={onClick} disabled={disabled} style={{...s[variant],padding:'13px 24px',borderRadius:12,border:'none',cursor:disabled?'not-allowed':'pointer',fontWeight:700,fontSize:14,fontFamily:'Montserrat,sans-serif',opacity:disabled?0.5:1,width:full?'100%':'auto',transition:'all 0.2s'}}>{children}</button>);
 }
 
+// callAPI mit automatischem Retry bei Fehler
 async function callAPI(messages) {
-  const res = await fetch('/api/analyze', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({messages})
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Server ${res.status}: ${err.substring(0,200)}`);
+  const attempt = async () => {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({messages})
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Server ${res.status}: ${err.substring(0,200)}`);
+    }
+    const data = await res.json();
+    if (!data.content?.[0]?.text) throw new Error('Keine KI-Antwort erhalten');
+    let raw = data.content[0].text.trim();
+    const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
+    if (s === -1 || e === -1) throw new Error('Kein JSON in Antwort');
+    return JSON.parse(raw.substring(s, e+1));
+  };
+
+  // Erster Versuch
+  try {
+    return await attempt();
+  } catch (firstError) {
+    console.warn('Erster Versuch fehlgeschlagen, retry in 3s...', firstError.message);
+    // 3 Sekunden warten, dann nochmal
+    await new Promise(r => setTimeout(r, 3000));
+    return await attempt(); // zweiter Versuch – wirft Fehler wenn er auch scheitert
   }
-  const data = await res.json();
-  if (!data.content?.[0]?.text) throw new Error('Keine KI-Antwort erhalten');
-  let raw = data.content[0].text.trim();
-  const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
-  if (s === -1 || e === -1) throw new Error('Kein JSON in Antwort');
-  return JSON.parse(raw.substring(s, e+1));
 }
 
 const scoreColor=s=>s>=70?B.teal:s>=45?'#E9A020':B.coral;
@@ -178,6 +191,45 @@ const scoreLabel=s=>s>=70?'Gut':s>=45?'Ausbaufähig':'Handlungsbedarf';
 const LOAD_MSGS=['Daten werden analysiert...','Bio & SEO werden ausgewertet...','Content-Qualität wird bewertet...','Deine Ziele werden berücksichtigt...','Report wird erstellt...'];
 
 export default function App() {
+  // ─── AUTH ───────────────────────────────────────────
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [pwInput, setPwInput] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('brit_auth') === 'true') {
+      setIsAuthenticated(true);
+    }
+    setAuthChecked(true);
+  }, []);
+
+  async function handleLogin() {
+    if (!pwInput.trim()) return;
+    setPwLoading(true);
+    setPwError('');
+    try {
+      const res = await fetch('/api/check-password', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({password: pwInput.trim()})
+      });
+      const data = await res.json();
+      if (data.ok) {
+        sessionStorage.setItem('brit_auth', 'true');
+        setIsAuthenticated(true);
+      } else {
+        setPwError('Falsches Passwort. Bitte versuche es erneut.');
+        setPwInput('');
+      }
+    } catch {
+      setPwError('Verbindungsfehler. Bitte versuche es erneut.');
+    }
+    setPwLoading(false);
+  }
+  // ────────────────────────────────────────────────────
+
   const [step,setStep]=useState(0);
   const [loading,setLoading]=useState(false);
   const [loadMsg,setLoadMsg]=useState('');
@@ -185,7 +237,6 @@ export default function App() {
   const [activeTab,setActiveTab]=useState('gesamt');
   const [showPrivacy,setShowPrivacy]=useState(false);
 
-  // Step 1: Profil
   const [profileImg,setProfileImg]=useState(null);
   const [vorname,setVorname]=useState('');
   const [handle,setHandle]=useState('');
@@ -199,16 +250,13 @@ export default function App() {
   const [hauptziel,setHauptziel]=useState('');
   const [nebenziele,setNebenziele]=useState([]);
 
-  // Step 2: Feed
   const [feedImg1,setFeedImg1]=useState(null);
   const [feedImg2,setFeedImg2]=useState(null);
   const [feedImg3,setFeedImg3]=useState(null);
 
-  // Step 3: Post Details
   const [postRequests,setPostRequests]=useState([]);
   const [postScreenshots,setPostScreenshots]=useState([]);
 
-  // Step 4: Insights
   const [avgReach,setAvgReach]=useState('');
   const [followerGrowth,setFollowerGrowth]=useState('');
   const [topFormat,setTopFormat]=useState('');
@@ -230,14 +278,12 @@ export default function App() {
     return iv;
   }
 
-  // SCHRITT 1 → 2: Profil analysieren (nur 1 Bild)
   async function runProfilAnalyse() {
     setLoading(true);
     const iv=startLoading();
     try {
       const hauptzielLabel=ZIELE.find(z=>z.id===hauptziel)?.label||hauptziel;
       const b64=await compressImage(profileImg, 700, 0.55);
-
       const parsed = await callAPI([{role:'user',content:[
         {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
         {type:'text',text:`Du bist ein professioneller Instagram-Stratege. Analysiere diesen Profil-Screenshot.
@@ -260,8 +306,7 @@ Antworte NUR mit JSON:
 {"profilAnalyse":{"gesamteindruck":"Text","bio":{"score":70,"seoFeld":"Was steht im SEO-Feld","bewertung":"Text","staerken":["s1","s2"],"schwaechen":["s1","s2"],"optimierung":"Optimierter Bio-Text","seoVorschlag":"Optimiertes SEO-Feld"},"positionierung":{"score":65,"klarheit":"Text","zielgruppe":"Text","usp":"Text","cta":"Text"}}}
 `}
       ]}]);
-
-      setAnalysis({profilAnalyse: parsed.profilAnalyse, hauptziel: hauptzielLabel});
+      setAnalysis({profilAnalyse: parsed.profilAnalyse, hauptziel: ZIELE.find(z=>z.id===hauptziel)?.label||hauptziel});
       setStep(2);
     } catch(e) {
       console.error(e);
@@ -270,7 +315,6 @@ Antworte NUR mit JSON:
     clearInterval(iv); setLoading(false);
   }
 
-  // SCHRITT 2 → 3: Feed analysieren (2-3 Bilder)
   async function runFeedAnalyse() {
     setLoading(true);
     const iv=startLoading();
@@ -280,9 +324,7 @@ Antworte NUR mit JSON:
         const b64=await compressImage(f, 700, 0.55);
         imgs.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}});
       }
-
       const hauptzielLabel=analysis?.hauptziel||'';
-
       const parsed = await callAPI([{role:'user',content:[
         ...imgs,
         {type:'text',text:`Du bist ein professioneller Instagram-Stratege. Analysiere diese Feed-Screenshots für @${handle} (${vorname}).
@@ -297,8 +339,7 @@ Antworte NUR mit JSON:
 {"feedAnalyse":{"gesamteindruck":"Text","feedOptik":{"score":70,"qualitaet":"Text","konsistenz":"Text","farbwelt":"Text","professionalitaet":"Text"},"hooks":{"score":65,"bewertung":"Text","sichtbareHooks":["h1","h2","h3"]},"contentsaeulen":{"authority":60,"demand":50,"conversion":40,"analyse":"Text"}},"postAnfragen":[{"nr":1,"grund":"Konkreter Grund","beschreibung":"Genaue Beschreibung damit ${vorname} diesen Post findet","hookHinweis":"Hook-Anfang falls sichtbar","prioritaet":"hoch","analyseFokus":"Was analysiert werden soll"},{"nr":2,"grund":"Text","beschreibung":"Text","hookHinweis":"Text","prioritaet":"hoch","analyseFokus":"Text"},{"nr":3,"grund":"Text","beschreibung":"Text","hookHinweis":"Text","prioritaet":"mittel","analyseFokus":"Text"},{"nr":4,"grund":"Text","beschreibung":"Text","hookHinweis":"Text","prioritaet":"mittel","analyseFokus":"Text"},{"nr":5,"grund":"Text","beschreibung":"Text","hookHinweis":"Text","prioritaet":"mittel","analyseFokus":"Text"}]}
 `}
       ]}]);
-
-      const top2=( parsed.postAnfragen||[]).slice(0,2);
+      const top2=(parsed.postAnfragen||[]).slice(0,2);
       setPostRequests(top2);
       setPostScreenshots(top2.map((_,i)=>({id:i,img:null,caption:'',likes:'',comments:'',views:'',hashtags:'',format:''})));
       setAnalysis(prev=>({...prev, feedAnalyse: parsed.feedAnalyse}));
@@ -310,7 +351,6 @@ Antworte NUR mit JSON:
     clearInterval(iv); setLoading(false);
   }
 
-  // SCHRITT 3 → 4: Finale Analyse
   async function runFinaleAnalyse() {
     setLoading(true);
     const iv=startLoading();
@@ -326,10 +366,8 @@ Antworte NUR mit JSON:
           } catch(e) { console.error('Post-Bild übersprungen:',e); }
         }
       }
-
       const hauptzielLabel=analysis?.hauptziel||'';
       const nebenzielLabels=nebenziele.map(id=>ZIELE.find(z=>z.id===id)?.label||id).join(', ');
-
       const prompt=`Erstelle die vollständige finale Instagram-Analyse für ${vorname} (@${handle}).
 
 PROFIL-ANALYSE: ${JSON.stringify(analysis?.profilAnalyse)}
@@ -357,6 +395,64 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
 
   const upPost=(i,k,v)=>setPostScreenshots(prev=>prev.map((p,j)=>j===i?{...p,[k]:v}:p));
 
+  // Noch nicht geprüft – nichts anzeigen
+  if (!authChecked) return null;
+
+  // ─── PASSWORT-SCREEN ────────────────────────────────
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Head>
+          <title>Brit Ortlepp – Instagram Content Analyse</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1"/>
+          <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+          <style>{`*{box-sizing:border-box;margin:0;padding:0;}body{background:#1A1A1A;font-family:'Montserrat',sans-serif;}`}</style>
+        </Head>
+        <div style={{minHeight:'100vh',background:B.black,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24}}>
+          <div style={{width:'100%',maxWidth:400}}>
+            <div style={{textAlign:'center',marginBottom:40}}>
+              <Logo/>
+              <div style={{marginTop:24,width:60,height:2,background:B.yellow,margin:'24px auto 0'}}/>
+            </div>
+            <div style={{background:'#222',borderRadius:20,padding:32}}>
+              <div style={{textAlign:'center',marginBottom:28}}>
+                <div style={{fontSize:32,marginBottom:12}}>🔒</div>
+                <h2 style={{color:B.white,fontWeight:800,fontSize:20,marginBottom:8}}>Geschützter Bereich</h2>
+                <p style={{color:'#888',fontSize:14,lineHeight:1.6}}>Bitte gib dein Passwort ein, um auf das Analyse-Tool zuzugreifen.</p>
+              </div>
+              <div style={{marginBottom:16}}>
+                <input
+                  type="password"
+                  placeholder="Passwort eingeben..."
+                  value={pwInput}
+                  onChange={e=>setPwInput(e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&handleLogin()}
+                  style={{width:'100%',background:'#333',border:`1.5px solid ${pwError?B.coral:'#444'}`,borderRadius:10,padding:'13px 16px',fontSize:15,color:B.white,outline:'none',fontFamily:'Montserrat,sans-serif',boxSizing:'border-box'}}
+                />
+              </div>
+              {pwError&&(
+                <div style={{background:B.coral+'20',border:`1px solid ${B.coral}`,borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:13,color:B.coral,textAlign:'center'}}>
+                  {pwError}
+                </div>
+              )}
+              <button
+                onClick={handleLogin}
+                disabled={pwLoading||!pwInput.trim()}
+                style={{width:'100%',background:B.yellow,color:B.black,border:'none',borderRadius:12,padding:'14px',fontSize:15,fontWeight:800,cursor:pwLoading||!pwInput.trim()?'not-allowed':'pointer',opacity:pwLoading||!pwInput.trim()?0.5:1,fontFamily:'Montserrat,sans-serif',transition:'all 0.2s'}}
+              >
+                {pwLoading?'Überprüfen...':'Zugang anfordern →'}
+              </button>
+            </div>
+            <div style={{textAlign:'center',marginTop:24,fontSize:12,color:'#555'}}>
+              © 2025 Brit Ortlepp – Outstanding Content
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+  // ────────────────────────────────────────────────────
+
   return (
     <>
       <Head>
@@ -367,7 +463,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
       </Head>
       <div style={{minHeight:'100vh',background:B.gray,color:B.black}}>
 
-        {/* HEADER */}
         <div style={{background:B.black,padding:'14px 28px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,boxShadow:'0 2px 20px rgba(0,0,0,0.3)'}}>
           <Logo/>
           <div style={{display:'flex',gap:3,alignItems:'center'}}>
@@ -380,7 +475,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
           </div>
         </div>
 
-        {/* LOADING */}
         {loading&&(
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.9)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',zIndex:999}}>
             <svg width="80" height="80" viewBox="0 0 100 100" style={{marginBottom:24}}>
@@ -394,7 +488,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
           </div>
         )}
 
-        {/* PRIVACY */}
         {showPrivacy&&(
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:998}}>
             <div style={{background:B.white,borderRadius:20,padding:32,maxWidth:480,width:'90%'}}>
@@ -408,7 +501,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
 
         <div style={{maxWidth:860,margin:'0 auto',padding:'28px 20px 60px'}}>
 
-          {/* STEP 0: START */}
           {step===0&&(
             <div>
               <div style={{textAlign:'center',marginBottom:36}}>
@@ -449,7 +541,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
             </div>
           )}
 
-          {/* STEP 1: PROFIL */}
           {step===1&&(
             <div>
               <div style={{marginBottom:24}}>
@@ -521,7 +612,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
             </div>
           )}
 
-          {/* STEP 2: FEED */}
           {step===2&&(
             <div>
               <div style={{marginBottom:20}}>
@@ -564,7 +654,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
             </div>
           )}
 
-          {/* STEP 3: POSTS */}
           {step===3&&(
             <div>
               <div style={{marginBottom:20}}>
@@ -585,10 +674,10 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
                   </div>
                 </Card>
               )}
-                  <div style={{background:B.yellow+'25',borderRadius:12,padding:14,marginBottom:16,borderLeft:`4px solid ${B.yellow}`}}>
-                  <div style={{fontWeight:700,color:B.dark,marginBottom:6,fontSize:13}}>📱 Bitte lade nur die 2 wichtigsten Posts hoch:</div>
-                  <div style={{fontSize:13,color:'#444',lineHeight:1.8}}>1. Öffne den Post in Instagram<br/>2. Mache einen Screenshot (Hook + Bild + Likes sichtbar)<br/>3. Lade max. 2 Screenshots hoch – die KI analysiert sie detail</div>
-                </div>
+              <div style={{background:B.yellow+'25',borderRadius:12,padding:14,marginBottom:16,borderLeft:`4px solid ${B.yellow}`}}>
+                <div style={{fontWeight:700,color:B.dark,marginBottom:6,fontSize:13}}>📱 Bitte lade nur die 2 wichtigsten Posts hoch:</div>
+                <div style={{fontSize:13,color:'#444',lineHeight:1.8}}>1. Öffne den Post in Instagram<br/>2. Mache einen Screenshot (Hook + Bild + Likes sichtbar)<br/>3. Lade max. 2 Screenshots hoch – die KI analysiert sie detailliert</div>
+              </div>
               {postRequests.map((req,i)=>(
                 <Card key={i} style={{borderLeft:`4px solid ${req.prioritaet==='hoch'?B.coral:B.teal}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
@@ -623,7 +712,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
             </div>
           )}
 
-          {/* STEP 4: INSIGHTS */}
           {step===4&&(
             <div>
               <div style={{marginBottom:20}}>
@@ -650,7 +738,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
             </div>
           )}
 
-          {/* STEP 5: ANALYSE */}
           {step===5&&analysis?.final&&(
             <div>
               <div style={{background:B.black,borderRadius:22,padding:'28px 28px 24px',marginBottom:20,position:'relative',overflow:'hidden'}}>
@@ -716,145 +803,16 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
                 ))}
               </div>
 
-              {activeTab==='gesamt'&&<Card>
-                <h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>🏆 Gesamtbewertung</h3>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-                  <div style={{background:B.teal+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>✅ Deine Stärken</div>{analysis.final.staerken?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:6}}>• {s}</div>)}</div>
-                  <div style={{background:B.coral+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>🚀 Sofort-Maßnahmen</div>{analysis.final.sofortmassnahmen?.map((m,i)=><div key={i} style={{fontSize:13,marginBottom:6}}>• {m}</div>)}</div>
-                </div>
-              </Card>}
-
-              {activeTab==='ziele'&&analysis.final.zielAnalyse&&<Card>
-                <h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>🎯 Ziel-Analyse</h3>
-                <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:20,background:B.gray,borderRadius:14,padding:20}}>
-                  <ScoreRing score={analysis.final.zielAnalyse.erreichungsgrad} size={90}/>
-                  <div><div style={{fontSize:12,fontWeight:700,color:B.teal,marginBottom:4}}>ZIELERREICHUNG AKTUELL</div><p style={{fontSize:14,lineHeight:1.7}}>{analysis.final.zielAnalyse.analyse}</p></div>
-                </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-                  <div style={{background:B.coral+'12',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>❌ Lücken</div>{analysis.final.zielAnalyse.luecken?.map((l,i)=><div key={i} style={{fontSize:13,marginBottom:6}}>• {l}</div>)}</div>
-                  <div style={{background:B.teal+'12',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>💡 Empfehlungen</div>{analysis.final.zielAnalyse.empfehlungen?.map((e,i)=><div key={i} style={{fontSize:13,marginBottom:6}}>• {e}</div>)}</div>
-                </div>
-              </Card>}
-
-              {activeTab==='bio'&&analysis.final.bio&&<Card>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18}}>📝 Deine Bio & SEO</h3><ScoreRing score={analysis.final.bio.score} size={70}/></div>
-                <p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.final.bio.analyse}</p>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}>
-                  <div style={{background:B.teal+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>✅ Stärken</div>{analysis.final.bio.staerken?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div>
-                  <div style={{background:B.coral+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>⚠️ Schwächen</div>{analysis.final.bio.schwaechen?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div>
-                </div>
-                <div style={{background:B.yellow+'25',borderRadius:14,padding:20,marginBottom:14,borderLeft:`4px solid ${B.yellow}`}}><div style={{fontWeight:800,color:B.dark,marginBottom:6,fontSize:12}}>✨ OPTIMIERTES SEO-NAMENSFELD</div><div style={{fontWeight:800,fontSize:16}}>{analysis.final.bio.seoVorschlag}</div></div>
-                <div style={{background:B.teal+'12',borderRadius:14,padding:20,borderLeft:`4px solid ${B.teal}`}}><div style={{fontWeight:800,color:B.teal,marginBottom:10,fontSize:12}}>✨ OPTIMIERTER BIO-TEXT</div><p style={{fontSize:14,lineHeight:1.85,whiteSpace:'pre-line'}}>{analysis.final.bio.optimierung}</p></div>
-              </Card>}
-
-              {activeTab==='optik'&&analysis.final.feedOptik&&<Card>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18}}>🎨 Deine Feed-Optik</h3><ScoreRing score={analysis.final.feedOptik.score} size={70}/></div>
-                <p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.final.feedOptik.analyse}</p>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:16}}>
-                  <div style={{background:B.teal+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>✅ Stärken</div>{analysis.final.feedOptik.staerken?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div>
-                  <div style={{background:B.coral+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>🔧 Verbesserungen</div>{analysis.final.feedOptik.verbesserungen?.map((v,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {v}</div>)}</div>
-                </div>
-                <div style={{background:B.yellow+'25',borderRadius:14,padding:16,borderLeft:`4px solid ${B.yellow}`}}><div style={{fontWeight:800,color:B.dark,marginBottom:8,fontSize:12}}>💡 EMPFEHLUNG</div><p style={{fontSize:14}}>{analysis.final.feedOptik.empfehlung}</p></div>
-              </Card>}
-
-              {activeTab==='saeulen'&&analysis.final.contentsaeulen&&<Card>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18}}>🏛️ Content-Säulen</h3><ScoreRing score={analysis.final.contentsaeulen.score} size={70}/></div>
-                <p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.final.contentsaeulen.analyse}</p>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:20}}>
-                  {[{key:'authority',label:'Authority',color:B.teal,icon:'🏆'},{key:'demand',label:'Demand',color:'#E9A020',icon:'🔥'},{key:'conversion',label:'Conversion',color:B.coral,icon:'💰'}].map(({key,label,color,icon})=>{
-                    const d=analysis.final.contentsaeulen[key];
-                    return(<div key={key} style={{background:color+'12',borderRadius:14,padding:18,borderTop:`4px solid ${color}`}}>
-                      <div style={{fontSize:22,marginBottom:6}}>{icon}</div>
-                      <div style={{fontWeight:800,color,marginBottom:12,fontSize:13}}>{label}</div>
-                      <div style={{fontSize:26,fontWeight:900,color,marginBottom:4}}>{d?.score}</div>
-                      <ScoreBar score={d?.score}/>
-                      <p style={{fontSize:12,color:'#555',marginTop:10,lineHeight:1.6}}>{d?.analyse}</p>
-                      <div style={{marginTop:12}}><div style={{fontSize:11,fontWeight:700,color,marginBottom:6}}>IDEEN:</div>{d?.ideen?.map((id,j)=><div key={j} style={{fontSize:12,marginBottom:4}}>💡 {id}</div>)}</div>
-                    </div>);
-                  })}
-                </div>
-                <div style={{background:B.yellow+'25',borderRadius:14,padding:16,borderLeft:`4px solid ${B.yellow}`}}><div style={{fontWeight:800,color:B.dark,marginBottom:8,fontSize:12}}>📌 STRATEGIE</div><p style={{fontSize:14}}>{analysis.final.contentsaeulen.empfehlung}</p></div>
-              </Card>}
-
-              {activeTab==='hooks'&&analysis.final.hooks&&<Card>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18}}>🪝 Deine Hooks</h3><ScoreRing score={analysis.final.hooks.score} size={70}/></div>
-                <p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.final.hooks.analyse}</p>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}>
-                  <div style={{background:B.teal+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>✅ Stärken</div>{analysis.final.hooks.staerken?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div>
-                  <div style={{background:B.coral+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>⚠️ Schwächen</div>{analysis.final.hooks.schwaechen?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div>
-                </div>
-                <div style={{marginBottom:20}}><div style={{fontSize:12,fontWeight:700,color:B.teal,letterSpacing:'0.1em',marginBottom:12}}>✨ 5 HOOK-VORSCHLÄGE FÜR DICH</div>{analysis.final.hooks.hookVorschlaege?.map((h,i)=>(<div key={i} style={{background:B.teal+'10',borderRadius:10,padding:14,borderLeft:`3px solid ${B.teal}`,fontSize:14,fontWeight:600,color:B.dark,marginBottom:8}}>„{h}"</div>))}</div>
-                {analysis.final.hooks.optimierungen?.map((h,i)=>(
-                  <div key={i} style={{background:B.gray,borderRadius:12,padding:16,marginBottom:10}}>
-                    <div style={{fontSize:11,color:'#999',fontWeight:700,marginBottom:4}}>ORIGINAL</div>
-                    <p style={{fontSize:14,fontStyle:'italic',color:'#555',marginBottom:12}}>„{h.original}"</p>
-                    <div style={{fontSize:11,color:B.teal,fontWeight:700,marginBottom:4}}>✨ OPTIMIERT</div>
-                    <p style={{fontSize:15,fontWeight:800,color:B.teal,marginBottom:6}}>„{h.optimiert}"</p>
-                    <div style={{fontSize:12,color:'#777'}}>💡 {h.grund}</div>
-                  </div>
-                ))}
-              </Card>}
-
-              {activeTab==='posts'&&analysis.final.postAnalyse&&<Card>
-                <h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>📊 Post-Analyse</h3>
-                {analysis.final.postAnalyse?.map((p,i)=>(
-                  <div key={i} style={{background:B.gray,borderRadius:14,padding:20,marginBottom:14,borderLeft:`4px solid ${scoreColor(p.score)}`}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}><div style={{fontWeight:800,fontSize:15}}>{p.titel}</div><div style={{fontSize:22,fontWeight:900,color:scoreColor(p.score)}}>{p.score}</div></div>
-                    <p style={{fontSize:14,color:'#444',marginBottom:12}}>{p.bewertung}</p>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-                      <div style={{background:B.teal+'15',borderRadius:10,padding:12}}><div style={{fontSize:11,fontWeight:700,color:B.teal,marginBottom:6}}>✅ STÄRKEN</div>{p.staerken?.map((s,j)=><div key={j} style={{fontSize:12,marginBottom:3}}>• {s}</div>)}</div>
-                      <div style={{background:B.coral+'15',borderRadius:10,padding:12}}><div style={{fontSize:11,fontWeight:700,color:B.coral,marginBottom:6}}>⚠️ SCHWÄCHEN</div>{p.schwaechen?.map((s,j)=><div key={j} style={{fontSize:12,marginBottom:3}}>• {s}</div>)}</div>
-                    </div>
-                    <div style={{background:B.yellow+'25',borderRadius:10,padding:12}}><div style={{fontSize:11,fontWeight:700,color:B.dark,marginBottom:4}}>💡 EMPFEHLUNG</div><div style={{fontSize:13}}>{p.empfehlung}</div></div>
-                  </div>
-                ))}
-              </Card>}
-
-              {activeTab==='keywords'&&analysis.final.keywords&&<Card>
-                <h3 style={{fontWeight:800,fontSize:18,marginBottom:20}}>🔑 Keywords & Hashtags</h3>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}>
-                  <div style={{background:B.teal+'15',borderRadius:14,padding:18}}><div style={{fontSize:12,fontWeight:700,color:B.teal,letterSpacing:'0.1em',marginBottom:12}}>PRIMÄRE KEYWORDS</div><div style={{display:'flex',flexWrap:'wrap'}}>{analysis.final.keywords.primaer?.map((kw,i)=><Chip key={i} color={B.teal}>{kw}</Chip>)}</div></div>
-                  <div style={{background:B.dark+'10',borderRadius:14,padding:18}}><div style={{fontSize:12,fontWeight:700,color:B.dark,letterSpacing:'0.1em',marginBottom:12}}>SEKUNDÄRE KEYWORDS</div><div style={{display:'flex',flexWrap:'wrap'}}>{analysis.final.keywords.sekundaer?.map((kw,i)=><Chip key={i} color={B.dark}>{kw}</Chip>)}</div></div>
-                </div>
-                {[{label:'Große Hashtags',items:analysis.final.keywords.hashtags?.gross,color:B.coral},{label:'Mittlere Hashtags',items:analysis.final.keywords.hashtags?.mittel,color:B.teal},{label:'Nischen-Hashtags',items:analysis.final.keywords.hashtags?.nische,color:B.dark}].map(({label,items,color})=>(
-                  <div key={label} style={{marginBottom:16}}><div style={{fontSize:12,fontWeight:700,color,marginBottom:8}}>{label}</div><div style={{display:'flex',flexWrap:'wrap'}}>{items?.map((h,i)=><Chip key={i} color={color}>{h}</Chip>)}</div></div>
-                ))}
-              </Card>}
-
-              {activeTab==='plan'&&analysis.final.contentplan&&<Card>
-                <h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>📅 4-Wochen Content-Plan</h3>
-                {analysis.final.contentplan?.map((item,i)=>{
-                  const sColor=item.saeule==='Authority'?B.teal:item.saeule==='Demand'?'#E9A020':B.coral;
-                  return(<div key={i} style={{background:B.gray,borderRadius:14,padding:20,marginBottom:12,borderLeft:`4px solid ${sColor}`}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-                      <div><div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:4}}>WOCHE {item.woche}</div><div style={{fontWeight:800,fontSize:16}}>{item.titel}</div></div>
-                      <div style={{display:'flex',gap:6,marginLeft:12}}><Chip color={sColor}>{item.saeule}</Chip><Chip color={B.black}>{item.format}</Chip></div>
-                    </div>
-                    <div style={{fontSize:13,color:'#777',marginBottom:6}}>📌 {item.thema}</div>
-                    {item.zielBezug&&<div style={{fontSize:13,color:B.teal,marginBottom:8,fontWeight:600}}>🎯 {item.zielBezug}</div>}
-                    <div style={{background:sColor+'15',borderRadius:10,padding:12}}><div style={{fontSize:11,fontWeight:700,color:sColor,marginBottom:4}}>🪝 HOOK</div><div style={{fontSize:14,fontWeight:600}}>„{item.hook}"</div></div>
-                  </div>);
-                })}
-              </Card>}
-
-              {activeTab==='massnahmen'&&analysis.final.massnahmen&&<Card>
-                <h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>🚀 Top 5 Maßnahmen</h3>
-                {analysis.final.massnahmen?.map((m,i)=>{
-                  const bCol=[B.coral,'#E9A020',B.teal,B.teal,B.teal][i];
-                  const aufwColor=m.aufwand==='niedrig'?B.teal:m.aufwand==='hoch'?B.coral:'#E9A020';
-                  return(<div key={i} style={{background:B.gray,borderRadius:14,padding:20,marginBottom:12,borderLeft:`4px solid ${bCol}`}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                      <div style={{display:'flex',alignItems:'center',gap:10}}>
-                        <div style={{width:32,height:32,background:bCol,color:B.white,borderRadius:99,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:13}}>#{m.rang}</div>
-                        <span style={{fontWeight:800,fontSize:16}}>{m.titel}</span>
-                      </div>
-                      <div style={{display:'flex',gap:6}}><Chip color={aufwColor}>⚡ {m.aufwand}</Chip><Chip color={B.dark}>{m.kategorie}</Chip></div>
-                    </div>
-                    <p style={{fontSize:14,color:'#444',marginBottom:8}}>{m.was}</p>
-                    <div style={{fontSize:13,color:'#777'}}>📈 {m.auswirkung}</div>
-                  </div>);
-                })}
-              </Card>}
+              {activeTab==='gesamt'&&<Card><h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>🏆 Gesamtbewertung</h3><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}><div style={{background:B.teal+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>✅ Deine Stärken</div>{analysis.final.staerken?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:6}}>• {s}</div>)}</div><div style={{background:B.coral+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>🚀 Sofort-Maßnahmen</div>{analysis.final.sofortmassnahmen?.map((m,i)=><div key={i} style={{fontSize:13,marginBottom:6}}>• {m}</div>)}</div></div></Card>}
+              {activeTab==='ziele'&&analysis.final.zielAnalyse&&<Card><h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>🎯 Ziel-Analyse</h3><div style={{display:'flex',alignItems:'center',gap:20,marginBottom:20,background:B.gray,borderRadius:14,padding:20}}><ScoreRing score={analysis.final.zielAnalyse.erreichungsgrad} size={90}/><div><div style={{fontSize:12,fontWeight:700,color:B.teal,marginBottom:4}}>ZIELERREICHUNG AKTUELL</div><p style={{fontSize:14,lineHeight:1.7}}>{analysis.final.zielAnalyse.analyse}</p></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}><div style={{background:B.coral+'12',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>❌ Lücken</div>{analysis.final.zielAnalyse.luecken?.map((l,i)=><div key={i} style={{fontSize:13,marginBottom:6}}>• {l}</div>)}</div><div style={{background:B.teal+'12',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>💡 Empfehlungen</div>{analysis.final.zielAnalyse.empfehlungen?.map((e,i)=><div key={i} style={{fontSize:13,marginBottom:6}}>• {e}</div>)}</div></div></Card>}
+              {activeTab==='bio'&&analysis.final.bio&&<Card><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18}}>📝 Deine Bio & SEO</h3><ScoreRing score={analysis.final.bio.score} size={70}/></div><p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.final.bio.analyse}</p><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}><div style={{background:B.teal+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>✅ Stärken</div>{analysis.final.bio.staerken?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div><div style={{background:B.coral+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>⚠️ Schwächen</div>{analysis.final.bio.schwaechen?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div></div><div style={{background:B.yellow+'25',borderRadius:14,padding:20,marginBottom:14,borderLeft:`4px solid ${B.yellow}`}}><div style={{fontWeight:800,color:B.dark,marginBottom:6,fontSize:12}}>✨ OPTIMIERTES SEO-NAMENSFELD</div><div style={{fontWeight:800,fontSize:16}}>{analysis.final.bio.seoVorschlag}</div></div><div style={{background:B.teal+'12',borderRadius:14,padding:20,borderLeft:`4px solid ${B.teal}`}}><div style={{fontWeight:800,color:B.teal,marginBottom:10,fontSize:12}}>✨ OPTIMIERTER BIO-TEXT</div><p style={{fontSize:14,lineHeight:1.85,whiteSpace:'pre-line'}}>{analysis.final.bio.optimierung}</p></div></Card>}
+              {activeTab==='optik'&&analysis.final.feedOptik&&<Card><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18}}>🎨 Deine Feed-Optik</h3><ScoreRing score={analysis.final.feedOptik.score} size={70}/></div><p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.final.feedOptik.analyse}</p><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:16}}><div style={{background:B.teal+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>✅ Stärken</div>{analysis.final.feedOptik.staerken?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div><div style={{background:B.coral+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>🔧 Verbesserungen</div>{analysis.final.feedOptik.verbesserungen?.map((v,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {v}</div>)}</div></div><div style={{background:B.yellow+'25',borderRadius:14,padding:16,borderLeft:`4px solid ${B.yellow}`}}><div style={{fontWeight:800,color:B.dark,marginBottom:8,fontSize:12}}>💡 EMPFEHLUNG</div><p style={{fontSize:14}}>{analysis.final.feedOptik.empfehlung}</p></div></Card>}
+              {activeTab==='saeulen'&&analysis.final.contentsaeulen&&<Card><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18}}>🏛️ Content-Säulen</h3><ScoreRing score={analysis.final.contentsaeulen.score} size={70}/></div><p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.final.contentsaeulen.analyse}</p><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:20}}>{[{key:'authority',label:'Authority',color:B.teal,icon:'🏆'},{key:'demand',label:'Demand',color:'#E9A020',icon:'🔥'},{key:'conversion',label:'Conversion',color:B.coral,icon:'💰'}].map(({key,label,color,icon})=>{const d=analysis.final.contentsaeulen[key];return(<div key={key} style={{background:color+'12',borderRadius:14,padding:18,borderTop:`4px solid ${color}`}}><div style={{fontSize:22,marginBottom:6}}>{icon}</div><div style={{fontWeight:800,color,marginBottom:12,fontSize:13}}>{label}</div><div style={{fontSize:26,fontWeight:900,color,marginBottom:4}}>{d?.score}</div><ScoreBar score={d?.score}/><p style={{fontSize:12,color:'#555',marginTop:10,lineHeight:1.6}}>{d?.analyse}</p><div style={{marginTop:12}}><div style={{fontSize:11,fontWeight:700,color,marginBottom:6}}>IDEEN:</div>{d?.ideen?.map((id,j)=><div key={j} style={{fontSize:12,marginBottom:4}}>💡 {id}</div>)}</div></div>);})}</div><div style={{background:B.yellow+'25',borderRadius:14,padding:16,borderLeft:`4px solid ${B.yellow}`}}><div style={{fontWeight:800,color:B.dark,marginBottom:8,fontSize:12}}>📌 STRATEGIE</div><p style={{fontSize:14}}>{analysis.final.contentsaeulen.empfehlung}</p></div></Card>}
+              {activeTab==='hooks'&&analysis.final.hooks&&<Card><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}><h3 style={{fontWeight:800,fontSize:18}}>🪝 Deine Hooks</h3><ScoreRing score={analysis.final.hooks.score} size={70}/></div><p style={{fontSize:14,lineHeight:1.75,color:'#444',marginBottom:20}}>{analysis.final.hooks.analyse}</p><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}><div style={{background:B.teal+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.teal,marginBottom:10,fontSize:13}}>✅ Stärken</div>{analysis.final.hooks.staerken?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div><div style={{background:B.coral+'15',borderRadius:12,padding:16}}><div style={{fontWeight:700,color:B.coral,marginBottom:10,fontSize:13}}>⚠️ Schwächen</div>{analysis.final.hooks.schwaechen?.map((s,i)=><div key={i} style={{fontSize:13,marginBottom:5}}>• {s}</div>)}</div></div><div style={{marginBottom:20}}><div style={{fontSize:12,fontWeight:700,color:B.teal,letterSpacing:'0.1em',marginBottom:12}}>✨ 5 HOOK-VORSCHLÄGE FÜR DICH</div>{analysis.final.hooks.hookVorschlaege?.map((h,i)=>(<div key={i} style={{background:B.teal+'10',borderRadius:10,padding:14,borderLeft:`3px solid ${B.teal}`,fontSize:14,fontWeight:600,color:B.dark,marginBottom:8}}>„{h}"</div>))}</div>{analysis.final.hooks.optimierungen?.map((h,i)=>(<div key={i} style={{background:B.gray,borderRadius:12,padding:16,marginBottom:10}}><div style={{fontSize:11,color:'#999',fontWeight:700,marginBottom:4}}>ORIGINAL</div><p style={{fontSize:14,fontStyle:'italic',color:'#555',marginBottom:12}}>„{h.original}"</p><div style={{fontSize:11,color:B.teal,fontWeight:700,marginBottom:4}}>✨ OPTIMIERT</div><p style={{fontSize:15,fontWeight:800,color:B.teal,marginBottom:6}}>„{h.optimiert}"</p><div style={{fontSize:12,color:'#777'}}>💡 {h.grund}</div></div>))}</Card>}
+              {activeTab==='posts'&&analysis.final.postAnalyse&&<Card><h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>📊 Post-Analyse</h3>{analysis.final.postAnalyse?.map((p,i)=>(<div key={i} style={{background:B.gray,borderRadius:14,padding:20,marginBottom:14,borderLeft:`4px solid ${scoreColor(p.score)}`}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}><div style={{fontWeight:800,fontSize:15}}>{p.titel}</div><div style={{fontSize:22,fontWeight:900,color:scoreColor(p.score)}}>{p.score}</div></div><p style={{fontSize:14,color:'#444',marginBottom:12}}>{p.bewertung}</p><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}><div style={{background:B.teal+'15',borderRadius:10,padding:12}}><div style={{fontSize:11,fontWeight:700,color:B.teal,marginBottom:6}}>✅ STÄRKEN</div>{p.staerken?.map((s,j)=><div key={j} style={{fontSize:12,marginBottom:3}}>• {s}</div>)}</div><div style={{background:B.coral+'15',borderRadius:10,padding:12}}><div style={{fontSize:11,fontWeight:700,color:B.coral,marginBottom:6}}>⚠️ SCHWÄCHEN</div>{p.schwaechen?.map((s,j)=><div key={j} style={{fontSize:12,marginBottom:3}}>• {s}</div>)}</div></div><div style={{background:B.yellow+'25',borderRadius:10,padding:12}}><div style={{fontSize:11,fontWeight:700,color:B.dark,marginBottom:4}}>💡 EMPFEHLUNG</div><div style={{fontSize:13}}>{p.empfehlung}</div></div></div>))}</Card>}
+              {activeTab==='keywords'&&analysis.final.keywords&&<Card><h3 style={{fontWeight:800,fontSize:18,marginBottom:20}}>🔑 Keywords & Hashtags</h3><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}><div style={{background:B.teal+'15',borderRadius:14,padding:18}}><div style={{fontSize:12,fontWeight:700,color:B.teal,letterSpacing:'0.1em',marginBottom:12}}>PRIMÄRE KEYWORDS</div><div style={{display:'flex',flexWrap:'wrap'}}>{analysis.final.keywords.primaer?.map((kw,i)=><Chip key={i} color={B.teal}>{kw}</Chip>)}</div></div><div style={{background:B.dark+'10',borderRadius:14,padding:18}}><div style={{fontSize:12,fontWeight:700,color:B.dark,letterSpacing:'0.1em',marginBottom:12}}>SEKUNDÄRE KEYWORDS</div><div style={{display:'flex',flexWrap:'wrap'}}>{analysis.final.keywords.sekundaer?.map((kw,i)=><Chip key={i} color={B.dark}>{kw}</Chip>)}</div></div></div>{[{label:'Große Hashtags',items:analysis.final.keywords.hashtags?.gross,color:B.coral},{label:'Mittlere Hashtags',items:analysis.final.keywords.hashtags?.mittel,color:B.teal},{label:'Nischen-Hashtags',items:analysis.final.keywords.hashtags?.nische,color:B.dark}].map(({label,items,color})=>(<div key={label} style={{marginBottom:16}}><div style={{fontSize:12,fontWeight:700,color,marginBottom:8}}>{label}</div><div style={{display:'flex',flexWrap:'wrap'}}>{items?.map((h,i)=><Chip key={i} color={color}>{h}</Chip>)}</div></div>))}</Card>}
+              {activeTab==='plan'&&analysis.final.contentplan&&<Card><h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>📅 4-Wochen Content-Plan</h3>{analysis.final.contentplan?.map((item,i)=>{const sColor=item.saeule==='Authority'?B.teal:item.saeule==='Demand'?'#E9A020':B.coral;return(<div key={i} style={{background:B.gray,borderRadius:14,padding:20,marginBottom:12,borderLeft:`4px solid ${sColor}`}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:4}}>WOCHE {item.woche}</div><div style={{fontWeight:800,fontSize:16}}>{item.titel}</div></div><div style={{display:'flex',gap:6,marginLeft:12}}><Chip color={sColor}>{item.saeule}</Chip><Chip color={B.black}>{item.format}</Chip></div></div><div style={{fontSize:13,color:'#777',marginBottom:6}}>📌 {item.thema}</div>{item.zielBezug&&<div style={{fontSize:13,color:B.teal,marginBottom:8,fontWeight:600}}>🎯 {item.zielBezug}</div>}<div style={{background:sColor+'15',borderRadius:10,padding:12}}><div style={{fontSize:11,fontWeight:700,color:sColor,marginBottom:4}}>🪝 HOOK</div><div style={{fontSize:14,fontWeight:600}}>„{item.hook}"</div></div></div>);})}</Card>}
+              {activeTab==='massnahmen'&&analysis.final.massnahmen&&<Card><h3 style={{fontWeight:800,fontSize:18,marginBottom:16}}>🚀 Top 5 Maßnahmen</h3>{analysis.final.massnahmen?.map((m,i)=>{const bCol=[B.coral,'#E9A020',B.teal,B.teal,B.teal][i];const aufwColor=m.aufwand==='niedrig'?B.teal:m.aufwand==='hoch'?B.coral:'#E9A020';return(<div key={i} style={{background:B.gray,borderRadius:14,padding:20,marginBottom:12,borderLeft:`4px solid ${bCol}`}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}><div style={{display:'flex',alignItems:'center',gap:10}}><div style={{width:32,height:32,background:bCol,color:B.white,borderRadius:99,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:13}}>#{m.rang}</div><span style={{fontWeight:800,fontSize:16}}>{m.titel}</span></div><div style={{display:'flex',gap:6}}><Chip color={aufwColor}>⚡ {m.aufwand}</Chip><Chip color={B.dark}>{m.kategorie}</Chip></div></div><p style={{fontSize:14,color:'#444',marginBottom:8}}>{m.was}</p><div style={{fontSize:13,color:'#777'}}>📈 {m.auswirkung}</div></div>);})}</Card>}
 
               <div style={{display:'flex',gap:12,justifyContent:'center',padding:'20px 0',flexWrap:'wrap'}}>
                 <Btn variant="ghost" onClick={()=>{setStep(0);setAnalysis(null);setProfileImg(null);setFeedImg1(null);setFeedImg2(null);setFeedImg3(null);}}>🔄 Neue Analyse</Btn>
