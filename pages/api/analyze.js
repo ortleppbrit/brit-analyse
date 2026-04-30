@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
   const { messages, prompt } = req.body;
 
-  try {
+  const attemptCall = async () => {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -28,17 +28,25 @@ export default async function handler(req, res) {
         messages: messages || [{ role: 'user', content: prompt }],
       }),
     });
-
     const data = await response.json();
-
     if (!response.ok) {
-      console.error('Anthropic API Fehler:', JSON.stringify(data));
-      return res.status(500).json({ error: JSON.stringify(data) });
+      throw new Error(JSON.stringify(data));
     }
+    return data;
+  };
 
-    return res.status(200).json(data);
-  } catch (error) {
-    console.error('API Fehler:', error);
-    return res.status(500).json({ error: String(error) });
+  // 2 Versuche – bei Fehler einmal automatisch wiederholen
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const data = await attemptCall();
+      return res.status(200).json(data);
+    } catch (error) {
+      console.error(`Versuch ${attempt} fehlgeschlagen:`, error);
+      if (attempt === 2) {
+        return res.status(500).json({ error: String(error) });
+      }
+      // 3 Sekunden warten vor dem zweiten Versuch
+      await new Promise(r => setTimeout(r, 3000));
+    }
   }
 }
