@@ -155,7 +155,21 @@ function Btn({children,onClick,disabled,variant='primary',full}) {
   return (<button onClick={onClick} disabled={disabled} style={{...s[variant],padding:'13px 24px',borderRadius:12,border:'none',cursor:disabled?'not-allowed':'pointer',fontWeight:700,fontSize:14,fontFamily:'Montserrat,sans-serif',opacity:disabled?0.5:1,width:full?'100%':'auto',transition:'all 0.2s'}}>{children}</button>);
 }
 
-// callAPI mit automatischem Retry bei Fehler
+function repairJSON(str) {
+  let result = '';
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (escape) { result += char; escape = false; continue; }
+    if (char === '\\') { escape = true; result += char; continue; }
+    if (char === '"') { inString = !inString; result += char; continue; }
+    if (inString && (char === '\n' || char === '\r' || char === '\t')) { result += ' '; continue; }
+    result += char;
+  }
+  return result;
+}
+
 async function callAPI(messages) {
   const attempt = async () => {
     const res = await fetch('/api/analyze', {
@@ -172,17 +186,16 @@ async function callAPI(messages) {
     let raw = data.content[0].text.trim();
     const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
     if (s === -1 || e === -1) throw new Error('Kein JSON in Antwort');
-    return JSON.parse(raw.substring(s, e+1));
+    const cleaned = repairJSON(raw.substring(s, e+1));
+    return JSON.parse(cleaned);
   };
 
-  // Erster Versuch
   try {
     return await attempt();
   } catch (firstError) {
     console.warn('Erster Versuch fehlgeschlagen, retry in 3s...', firstError.message);
-    // 3 Sekunden warten, dann nochmal
     await new Promise(r => setTimeout(r, 3000));
-    return await attempt(); // zweiter Versuch – wirft Fehler wenn er auch scheitert
+    return await attempt();
   }
 }
 
@@ -191,7 +204,6 @@ const scoreLabel=s=>s>=70?'Gut':s>=45?'Ausbaufähig':'Handlungsbedarf';
 const LOAD_MSGS=['Daten werden analysiert...','Bio & SEO werden ausgewertet...','Content-Qualität wird bewertet...','Deine Ziele werden berücksichtigt...','Report wird erstellt...'];
 
 export default function App() {
-  // ─── AUTH ───────────────────────────────────────────
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [pwInput, setPwInput] = useState('');
@@ -228,7 +240,6 @@ export default function App() {
     }
     setPwLoading(false);
   }
-  // ────────────────────────────────────────────────────
 
   const [step,setStep]=useState(0);
   const [loading,setLoading]=useState(false);
@@ -380,7 +391,7 @@ ${postScreenshots.map((p,i)=>`Post ${i+1}: Caption: ${p.caption||'k.A.'} | Likes
 
 INSIGHTS: Reichweite: ${avgReach||'k.A.'} | Wachstum: ${followerGrowth||'k.A.'} | Profil-Aufrufe: ${profileViews||'k.A.'} | Story-Reach: ${storyReach||'k.A.'} | Beste Zeit: ${bestTime||'k.A.'} | Top-Format: ${topFormat||'k.A.'} | Zusatz: ${additionalNotes||'keine'}
 
-Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
+Antworte NUR mit kompaktem JSON. Verwende KEINE Zeilenumbrueche innerhalb von Strings:
 {"gesamtscore":75,"zusammenfassung":"Text","staerken":["s1","s2","s3"],"sofortmassnahmen":["m1","m2","m3"],"zielAnalyse":{"hauptziel":"${hauptzielLabel}","erreichungsgrad":50,"analyse":"Text","luecken":["l1","l2"],"empfehlungen":["e1","e2"]},"bio":{"score":70,"analyse":"Text","staerken":["s1"],"schwaechen":["s1"],"optimierung":"Text","seoVorschlag":"Text"},"feedOptik":{"score":65,"analyse":"Text","staerken":["s1"],"verbesserungen":["v1","v2"],"empfehlung":"Text"},"contentsaeulen":{"score":60,"analyse":"Text","authority":{"score":60,"analyse":"Text","ideen":["i1","i2"]},"demand":{"score":55,"analyse":"Text","ideen":["i1","i2"]},"conversion":{"score":45,"analyse":"Text","ideen":["i1","i2"]},"empfehlung":"Text"},"hooks":{"score":65,"analyse":"Text","staerken":["s1"],"schwaechen":["s1"],"hookVorschlaege":["h1","h2","h3"],"optimierungen":[{"original":"o","optimiert":"opt","grund":"g"}]},"postAnalyse":[{"titel":"Post 1","bewertung":"Text","score":70,"staerken":["s1"],"schwaechen":["s1"],"empfehlung":"Text"}],"keywords":{"primaer":["kw1","kw2"],"sekundaer":["kw1","kw2"],"hashtags":{"gross":["#t1","#t2"],"mittel":["#t1","#t2"],"nische":["#t1","#t2"]}},"contentplan":[{"woche":1,"titel":"Idee","format":"Reel","saeule":"Authority","hook":"Hook","thema":"Thema","zielBezug":"Bezug"},{"woche":2,"titel":"Idee","format":"Karussell","saeule":"Demand","hook":"Hook","thema":"Thema","zielBezug":"Bezug"},{"woche":3,"titel":"Idee","format":"Reel","saeule":"Conversion","hook":"Hook","thema":"Thema","zielBezug":"Bezug"},{"woche":4,"titel":"Idee","format":"Static","saeule":"Authority","hook":"Hook","thema":"Thema","zielBezug":"Bezug"}],"massnahmen":[{"rang":1,"titel":"T","was":"W","auswirkung":"A","aufwand":"niedrig","kategorie":"Bio"},{"rang":2,"titel":"T","was":"W","auswirkung":"A","aufwand":"mittel","kategorie":"Content"},{"rang":3,"titel":"T","was":"W","auswirkung":"A","aufwand":"hoch","kategorie":"Strategie"},{"rang":4,"titel":"T","was":"W","auswirkung":"A","aufwand":"niedrig","kategorie":"Optik"},{"rang":5,"titel":"T","was":"W","auswirkung":"A","aufwand":"mittel","kategorie":"Content"}]}`;
 
       const parsed = await callAPI([{role:'user',content:[...postImgContent,{type:'text',text:prompt}]}]);
@@ -395,10 +406,8 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
 
   const upPost=(i,k,v)=>setPostScreenshots(prev=>prev.map((p,j)=>j===i?{...p,[k]:v}:p));
 
-  // Noch nicht geprüft – nichts anzeigen
   if (!authChecked) return null;
 
-  // ─── PASSWORT-SCREEN ────────────────────────────────
   if (!isAuthenticated) {
     return (
       <>
@@ -451,7 +460,6 @@ Antworte NUR mit kompaktem JSON ohne Zeilenumbrüche in Strings:
       </>
     );
   }
-  // ────────────────────────────────────────────────────
 
   return (
     <>
